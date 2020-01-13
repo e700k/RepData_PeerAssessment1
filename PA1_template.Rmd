@@ -1,25 +1,146 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "PA1_template"
+author: "Balázs J. Keresztes"
+date: "09/01/2020"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 
-## Loading and preprocessing the data
+library(dplyr)
+library(ggplot2)
+
+options(warn=-1)
+```
+
+## Reproducable Research - Course Project 1
+
+The following report is based on the questions provided in the Reproducable Research 
+course's first Course Project. It is intended to showcase writing an R Markdown file 
+that contains an alaysis on activity monitoring device data using knitr nd the analysis 
+itself.
 
 
+### Loading and preprocessing the data
 
-## What is mean total number of steps taken per day?
+The data is provided for the assignment. 
+
+*"This assignment makes use of data from a personal activity monitoring
+device. This device collects data at 5 minute intervals through out the
+day. The data consists of two months of data from an anonymous
+individual collected during the months of October and November, 2012
+and include the number of steps taken in 5 minute intervals each day."*
+
+```{r}
+data <- tbl_df(read.csv("activity.csv"))
+
+summary(data)
+```
+
+As defined in the assignment, the variables are
+```{r}
+names(data)
+```
+
+where
+
+* **steps**: Number of steps taking in a 5-minute interval (missing values 
+are coded as \color{red}{\verb|NA|}NA);
+* **date**: The date on which the measurement was taken in YYYY-MM-DD format;
+* **interval**: Identifier for the 5-minute interval in which measurement 
+
+was taken.
 
 
+### What is mean total number of steps taken per day?
 
-## What is the average daily activity pattern?
+Firstly, we're interested in the mean and median steps taken on a daily 
+basis. For this, we group the data by days.
+```{r}
+daily <- data %>%
+        group_by(date) %>%
+        summarise(total = sum(steps))
+
+head(daily)
+```
+
+Now, we extract the number of days in the data; the number of groups in
+`daily` that has valid values.
+```{r}
+n <- nrow(daily[!is.na(daily$total), ])
+```
+
+We can determine the mean total steps taken on a single day (ignoring
+NA values).
+```{r}
+mean <- mean(daily$total, na.rm = TRUE)
+```
+
+As well as the median value:
+```{r}
+median <- median(daily$total, na.rm = TRUE)
+```
+
+We get the following results:
+
+* ``r paste("n =", n)``
+* ``r paste("mean =", mean)``
+* ``r paste("median =", median)``
+
+We can check how this number looks like compared in a histogram. The bars represent
+a 500 wide interval in which we group the different daily totals, the red vertical
+line shows the mean value.
+```{r}
+qplot(daily$total, geom="histogram", binwidth=500, ylim=c(0,7)) + 
+        geom_vline(xintercept = mean, col = "Red", lwd = 1.5) +
+        xlab("Daily Total Steps") +
+        ylab("Frequency")
+```
 
 
+### What is the average daily activity pattern?
 
-## Imputing missing values
+Let's see how the average steps are distributed on a timescale when we take and picture
+the intervals of 5 minutes and compare them based on how many steps are taken on average
+within them. I'm going to group by intervals, calculate the individual mean values for 
+each interval, and plot them. In order to visualise this, I'm also going to convert the 
+interval values to something more readable, into hh:mm format.
 
+```{r}
+to_hm <- function(x) {
+        r <- character(length = length(x))
+        for(i in seq_along(x)) {
+                if(nchar(x[i]) == 1) { r[i] <- paste0("0:0", x[i]) }
+                else if(nchar(x[i]) == 2) { r[i] <- paste0("0:", x[i]) }
+                else if(nchar(x[i]) == 3) { r[i] <- paste0(substr(x[i],1,1),":",substr(x[i],2,3)) }
+                else { r[i] <- paste0(substr(x[i],1,2),":",substr(x[i],3,4)) } 
+        }
+        r
+}
 
+interval <- data %>% 
+        group_by(interval) %>% 
+        summarise(mean = mean(steps, na.rm = TRUE))
 
-## Are there differences in activity patterns between weekdays and weekends?
+ggplot(
+        data = interval, 
+        aes(1:288, mean)) + 
+        geom_line() + 
+        scale_x_continuous(
+                breaks = seq(from=1, to=288, by=36), 
+                labels = to_hm(interval$interval[seq(from=1, to=288, by=36)])) +
+        xlab("Time (in 5 minute intervals)") +
+        ylab("Mean Steps Taken")
+```
+
+And as the graph clearly shows the 5-minute interval with the highest average steps taken
+can be easily spotted.
+
+```{r}
+highest <- interval %>%
+        filter(mean == max(mean))
+highest
+```
+
+This seems to be in line with what we can see on the graph.
