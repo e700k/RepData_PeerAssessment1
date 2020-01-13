@@ -32,7 +32,7 @@ day. The data consists of two months of data from an anonymous
 individual collected during the months of October and November, 2012
 and include the number of steps taken in 5 minute intervals each day."*
 
-```{r}
+```{r cache=TRUE}
 data <- tbl_df(read.csv("activity.csv"))
 
 summary(data)
@@ -57,43 +57,43 @@ was taken.
 
 Firstly, we're interested in the mean and median steps taken on a daily 
 basis. For this, we group the data by days.
-```{r}
-daily <- data %>%
+```{r cache=TRUE}
+data_by_day <- data %>%
         group_by(date) %>%
         summarise(total = sum(steps))
 
-head(daily)
+head(data_by_day)
 ```
 
 Now, we extract the number of days in the data; the number of groups in
-`daily` that has valid values.
-```{r}
-n <- nrow(daily[!is.na(daily$total), ])
+`data_by_day` that has valid values.
+```{r cache=TRUE}
+n <- nrow(data_by_day[!is.na(data_by_day$total), ])
 ```
 
 We can determine the mean total steps taken on a single day (ignoring
 NA values).
-```{r}
-mean <- mean(daily$total, na.rm = TRUE)
+```{r cache=TRUE}
+original_mean <- mean(data_by_day$total, na.rm = TRUE)
 ```
 
 As well as the median value:
-```{r}
-median <- median(daily$total, na.rm = TRUE)
+```{r cache=TRUE}
+original_median <- median(data_by_day$total, na.rm = TRUE)
 ```
 
 We get the following results:
 
 * ``r paste("n =", n)``
-* ``r paste("mean =", mean)``
-* ``r paste("median =", median)``
+* ``r paste("mean =", original_mean)``
+* ``r paste("median =", original_median)``
 
 We can check how this number looks like compared in a histogram. The bars represent
 a 500 wide interval in which we group the different daily totals, the red vertical
 line shows the mean value.
-```{r}
-qplot(daily$total, geom="histogram", binwidth=500, ylim=c(0,7)) + 
-        geom_vline(xintercept = mean, col = "Red", lwd = 1.5) +
+```{r cache=TRUE}
+qplot(data_by_day$total, geom="histogram", binwidth=500, ylim=c(0,7)) + 
+        geom_vline(xintercept = original_mean, col = "Red", lwd = 1.5) +
         xlab("Daily Total Steps") +
         ylab("Frequency")
 ```
@@ -101,46 +101,138 @@ qplot(daily$total, geom="histogram", binwidth=500, ylim=c(0,7)) +
 
 ### What is the average daily activity pattern?
 
-Let's see how the average steps are distributed on a timescale when we take and picture
-the intervals of 5 minutes and compare them based on how many steps are taken on average
-within them. I'm going to group by intervals, calculate the individual mean values for 
-each interval, and plot them. In order to visualise this, I'm also going to convert the 
-interval values to something more readable, into hh:mm format.
+Let's see how the average steps are distributed on a timescale when we take and 
+picture the intervals of 5 minutes and compare them based on how many steps are 
+taken on average within them. I'm going to group by intervals, calculate the 
+individual mean values for each interval, and plot them. In order to visualise 
+this, I'm also going to convert the interval values to something more readable, 
+into hh:mm format.
 
-```{r}
+```{r cache=TRUE}
 to_hm <- function(x) {
         r <- character(length = length(x))
         for(i in seq_along(x)) {
                 if(nchar(x[i]) == 1) { r[i] <- paste0("0:0", x[i]) }
                 else if(nchar(x[i]) == 2) { r[i] <- paste0("0:", x[i]) }
-                else if(nchar(x[i]) == 3) { r[i] <- paste0(substr(x[i],1,1),":",substr(x[i],2,3)) }
+                else if(nchar(x[i]) == 3) { 
+                        r[i] <- paste0(substr(x[i],1,1),":",substr(x[i],2,3)) }
                 else { r[i] <- paste0(substr(x[i],1,2),":",substr(x[i],3,4)) } 
         }
         r
 }
 
-interval <- data %>% 
+data_by_interval <- data %>% 
         group_by(interval) %>% 
         summarise(mean = mean(steps, na.rm = TRUE))
 
 ggplot(
-        data = interval, 
+        data = data_by_interval, 
         aes(1:288, mean)) + 
         geom_line() + 
         scale_x_continuous(
                 breaks = seq(from=1, to=288, by=36), 
-                labels = to_hm(interval$interval[seq(from=1, to=288, by=36)])) +
+                labels = to_hm(data_by_interval$interval[seq(from=1, to=288, by=36)])) +
         xlab("Time (in 5 minute intervals)") +
         ylab("Mean Steps Taken")
 ```
 
-And as the graph clearly shows the 5-minute interval with the highest average steps taken
-can be easily spotted.
+And as the graph clearly shows the 5-minute interval with the highest average 
+steps taken can be easily spotted.
 
-```{r}
-highest <- interval %>%
+```{r cache=TRUE}
+highest <- data_by_interval %>%
         filter(mean == max(mean))
 highest
 ```
 
 This seems to be in line with what we can see on the graph.
+
+
+### Imputing missing values
+
+The data has many missing (NA) values. Based on the function between the time and 
+number of steps taken I think it distorts the data less if we impute with the 
+interval means.
+
+Let's see how many NA values do we have in the data, and create a new, imputed 
+data set.
+
+```{r cache=TRUE}
+sum(is.na(data$steps))
+
+impute <- function(x) {
+        for(i in seq_along(x$steps)) {
+                x$steps[i] <- if (is.na(x$steps[i])) {
+                        round(data_by_interval$mean[
+                                data_by_interval$interval == x$interval[i]],0) }
+                else { x$steps[i] }
+        }
+        x
+}
+
+imputed_data <- impute(data)
+```
+
+Now we can calculate the mean and median values of `data_imputed` and compare 
+them to the original data set.
+
+```{r cache=TRUE}
+imputed_data_by_day <- imputed_data %>%
+        group_by(date) %>%
+        summarise(total = sum(steps))
+
+imputed_mean <- mean(imputed_data_by_day$total)
+imputed_median <- median(imputed_data_by_day$total)
+
+data.frame(original = c(mean = original_mean, median = original_median), 
+           imputed = c(mean = imputed_mean, median = imputed_median),
+           difference = c(mean = (original_mean - imputed_mean),
+                          median = (original_median - imputed_median)))
+```
+
+The difference is due to the restriction `steps` variable has: steps taken can
+only be whole, positive numbers--while the imputed mean values are not whole
+numbers.
+
+```{r cache=TRUE}
+qplot(imputed_data_by_day$total, geom="histogram", binwidth=500, ylim=c(0,7)) + 
+        geom_vline(xintercept = imputed_mean, col = "Red", lwd = 1.5) +
+        xlab("Daily Total Steps") +
+        ylab("Frequency")
+```
+
+
+### Are there differences in activity patterns between weekdays and weekends?
+
+For the last part of this assigment, I'm going t examine whether there's a 
+visible difference between the interval-averages on weekdays and weekends. I'm
+going to create a new factor variable for the imputed data and plot them on
+separate panels.
+
+```{r cache=TRUE}
+get_day_type <- function(x) {
+        r <- character(length(x))
+        for(i in seq_along(x)) {
+                r[i] <- if(weekdays(as.Date(x[i])) %in% c("Saturday", "Sunday")) { 
+                        "Weekend" }
+                        else { "Weekday" }
+        }
+        r
+}
+
+day_types <- get_day_type(imputed_data$date)
+imputed_data$day_type <- as.factor(day_types)
+        
+imputed_data_by_interval <- imputed_data %>%
+        group_by(interval, day_type) %>% 
+        summarise(mean = mean(steps))
+
+ggplot(data = imputed_data_by_interval, 
+        aes(interval, mean)) +
+        geom_line() + 
+        facet_grid(rows = vars(day_type)) +
+        xlab("Time (in 5 minute intervals)") +
+        ylab("Mean Steps Taken")
+```
+
+The graph shows there's a clear difference between the two categories. 
