@@ -185,7 +185,8 @@ highest
 ## 1      835  206.
 ```
 
-This seems to be in line with what we can see on the graph.
+This seems to be in line with what we can see on the graph: the highest interval
+is the one between 8:35 - 8:40 AM.
 
 
 ### Imputing missing values
